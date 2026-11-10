@@ -13,7 +13,10 @@ class Puzzle:
         print(f"Difficulty: {self.difficulty}")
 
     def check_answer( self, guess):
-        return guess.strip().lower() == self.answer.strip().lower()
+        if guess.strip().lower() == self.answer.strip().lower():
+              return True
+        else:
+              return False
 
     def __str__(self):
           return f"{self.title} [{self.difficulty}]"
