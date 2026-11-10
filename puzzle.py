@@ -21,22 +21,3 @@ class Puzzle:
     def __str__(self):
           return f"{self.title} [{self.difficulty}]"
 
-
-puzzle1 = Puzzle (
-      "The First code",
-      "What number comes next: 2, 4, 8, 16?",
-      "32",
-      "Each number doubles",
-      "Easy",
-)
-
-puzzle1.display_question()
-
-guess = input ("Your answer: ")
-
-if puzzle1.check_answer(guess):
-          print("Correct!")
-
-else: 
-          print("Not quite. Hint:", puzzle1.hint)
-          pass
