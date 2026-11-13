@@ -1,5 +1,31 @@
+from puzzles.code_vault import (
+    SEQUENCE,
+    SECURITY_CODE,
+    HINTS,
+    check_answer
+)
+
+from puzzles.hidden_message import (
+    ENCRYPTED_MESSAGE,
+    SECURITY_PASSWORD,
+    HINTS as MESSAGE_HINTS,
+    decrypt_message,
+    check_answer as check_message_answer
+)
+
+from puzzles.final_challenge import (
+    SECURITY_PHRASE,
+    HINTS as FINAL_HINTS,
+    check_answer as check_final_answer
+)
+
+
+
 
 import streamlit as st
+
+if "room3_completed" not in st.session_state:
+    st.session_state.room3_completed = False
 
 st.set_page_config(
     page_title="The Enigma Files | Classified",
@@ -142,8 +168,36 @@ if "selected_room" not in st.session_state:
 if "started" not in st.session_state:
     st.session_state.started = False
 
+if "room1_completed" not in st.session_state:
+    st.session_state.room1_completed = False
+
+if "room1_attempts" not in st.session_state:
+    st.session_state.room1_attempts = 0
+
+if "room1_hint_level" not in st.session_state:
+    st.session_state.room1_hint_level = 0
+
+if "room2_completed" not in st.session_state:
+    st.session_state.room2_completed = False
+
+if "room2_attempts" not in st.session_state:
+    st.session_state.room2_attempts = 0
+
+if "room2_hint_level" not in st.session_state:
+    st.session_state.room2_hint_level = 0
+
+if "room3_completed" not in st.session_state:
+    st.session_state.room3_completed = False
+
+if "room3_attempts" not in st.session_state:
+    st.session_state.room3_attempts = 0
+
+if "room3_hint_level" not in st.session_state:
+    st.session_state.room3_hint_level = 0
+
 
 # ---------------- HEADER ----------------
+
 
 st.markdown("""
 <div class="terminal">
@@ -236,40 +290,427 @@ for col, room in zip([col1, col2, col3], rooms):
             st.session_state.selected_room = room["key"]
             st.session_state.started = True
 
-# ---------------- SELECTED ROOM ----------------
 
-if st.session_state.selected_room:
-    selected = st.session_state.selected_room
+# ---------------- ROOM 1: THE CODE VAULT ----------------
+
+if st.session_state.selected_room == "room1":
 
     st.divider()
 
-    room_details = {
-        "room1": ("THE CODE VAULT", "Your first objective is to identify the missing number in a sequence. A correct answer will reveal the security code."),
-        "room2": ("THE HIDDEN MESSAGE", "A coded message awaits. Identify the encryption pattern and recover the hidden password."),
-        "room3": ("THE FINAL CHALLENGE", "Examine the evidence, connect the clues and identify the correct solution to unlock the exit.")
-    }
+    st.markdown(
+        '<div class="terminal">ACCESSING FILE: EF-001-A</div>',
+        unsafe_allow_html=True
+    )
 
-    name, briefing = room_details[selected]
+    st.markdown("# THE CODE VAULT")
 
-    st.markdown(f"### MISSION BRIEFING: {name}")
-    st.write(briefing)
+    st.warning(
+        "SECURITY LOCK ACTIVE. IDENTIFY THE MISSING NUMBER "
+        "TO RETRIEVE THE ACCESS CODE."
+    )
 
-    st.info("Room interface selected. Puzzle mechanics will be connected to this screen in the next development stage.")
+    st.write("""
+    An encrypted security system protects the first room.
+
+    A sequence of numbers has been recovered from the facility's
+    mainframe. One number is missing.
+
+    Identify the pattern and enter the missing number.
+    """)
+
+    st.markdown("### RECOVERED DATA")
+
+    sequence_display = "   →   ".join(
+        str(number) for number in SEQUENCE
+    )
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#17171d;
+            border:1px solid #8c7049;
+            padding:25px;
+            text-align:center;
+            font-size:25px;
+            color:#d6b77d;
+            font-family:monospace;
+            letter-spacing:3px;
+            ">
+            {sequence_display}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("")
+
+    # PLAYER ANSWER
+
+    with st.form("code_vault_form"):
+
+        user_answer = st.text_input(
+            "ENTER THE MISSING NUMBER",
+            placeholder="Awaiting input..."
+        )
+
+        submitted = st.form_submit_button(
+            "SUBMIT ANSWER",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            if check_answer(user_answer):
+
+                st.session_state.room1_completed = True
+
+            else:
+
+                st.session_state.room1_attempts += 1
+
+                st.error(
+                    "ACCESS DENIED. THE SEQUENCE DOES NOT MATCH."
+                )
+
+    # HINT SYSTEM
+
+    st.divider()
+
+    st.markdown("### INVESTIGATION NOTES")
+
+    if not st.session_state.room1_completed:
+
+        if st.button("REQUEST HINT"):
+
+            if st.session_state.room1_hint_level < len(HINTS):
+                st.session_state.room1_hint_level += 1
+
+        if st.session_state.room1_hint_level > 0:
+
+            hint = HINTS[
+                st.session_state.room1_hint_level - 1
+            ]
+
+            st.info(
+                f"INTELLIGENCE REPORT: {hint}"
+            )
+
+        st.caption(
+            f"ATTEMPTS: {st.session_state.room1_attempts}"
+        )
+
+    # SUCCESS
+
+    if st.session_state.room1_completed:
+
+        st.success("ACCESS GRANTED. SECURITY SYSTEM OVERRIDDEN.")
+
+        st.markdown("## SECURITY CODE RECOVERED")
+
+        st.markdown(
+            f"""
+            <div style="
+                background:#17171d;
+                border:1px solid #b99b65;
+                padding:30px;
+                text-align:center;
+                ">
+                <div style="
+                    color:#b99b65;
+                    font-family:monospace;
+                    letter-spacing:4px;
+                    ">
+                    RECOVERED SECURITY CODE
+                </div>
+                <div style="
+                    color:#f0d8a8;
+                    font-size:48px;
+                    letter-spacing:12px;
+                    font-family:monospace;
+                    ">
+                    {SECURITY_CODE}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.balloons()
+
+        st.write(
+            "The first security checkpoint has been successfully bypassed."
+        )
+
+    st.divider()
 
     if st.button("RETURN TO DIRECTORY"):
         st.session_state.selected_room = None
         st.rerun()
 
+# ---------------- ROOM 2: THE HIDDEN MESSAGE ----------------
+
+elif st.session_state.selected_room == "room2":
+
+    st.divider()
+
+    st.markdown(
+        '<div class="terminal">ACCESSING FILE: EF-002-B</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("# THE HIDDEN MESSAGE")
+
+    st.warning(
+        "INTERCEPTED TRANSMISSION DETECTED. "
+        "DECRYPTION REQUIRED."
+    )
+
+    st.write("""
+    An unknown operator has left an encrypted message
+    inside the facility's communication system.
+
+    The message contains the password needed to access
+    the next security checkpoint.
+
+    Recover the original message before the transmission
+    is permanently deleted.
+    """)
+
+    st.markdown("### INTERCEPTED TRANSMISSION")
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#17171d;
+            border:1px solid #8c7049;
+            padding:30px;
+            text-align:center;
+            ">
+            <div style="
+                color:#b99b65;
+                font-family:monospace;
+                letter-spacing:3px;
+                font-size:12px;
+                ">
+                ENCRYPTED DATA
+            </div>
+            <div style="
+                color:#e5d2ae;
+                font-size:42px;
+                letter-spacing:12px;
+                font-family:monospace;
+                padding:15px;
+                ">
+                {ENCRYPTED_MESSAGE}
+            </div>
+            <div style="
+                color:#8d7771;
+                font-family:monospace;
+                font-size:11px;
+                ">
+                ENCRYPTION TYPE: CAESAR CIPHER
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("")
+
+    st.markdown("### DECRYPTION TERMINAL")
+
+    with st.form("hidden_message_form"):
+
+        user_message = st.text_input(
+            "ENTER THE DECRYPTED WORD",
+            placeholder="Awaiting decoded message..."
+        )
+
+        submitted = st.form_submit_button(
+            "DECRYPT MESSAGE",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            if check_message_answer(user_message):
+
+                st.session_state.room2_completed = True
+
+            else:
+
+                st.session_state.room2_attempts += 1
+
+                st.error(
+                    "DECRYPTION FAILED. MESSAGE DOES NOT MATCH."
+                )
+
+    # HINT SYSTEM
+
+    st.divider()
+
+    st.markdown("### CLASSIFIED INTELLIGENCE")
+
+    if not st.session_state.room2_completed:
+
+        if st.button("REQUEST INTELLIGENCE REPORT"):
+
+            if st.session_state.room2_hint_level < len(MESSAGE_HINTS):
+                st.session_state.room2_hint_level += 1
+
+        if st.session_state.room2_hint_level > 0:
+
+            hint = MESSAGE_HINTS[
+                st.session_state.room2_hint_level - 1
+            ]
+
+            st.info(f"INTELLIGENCE REPORT: {hint}")
+
+        st.caption(
+            f"FAILED ATTEMPTS: {st.session_state.room2_attempts}"
+        )
+
+    # SUCCESS
+
+    if st.session_state.room2_completed:
+
+        st.success("MESSAGE SUCCESSFULLY DECRYPTED.")
+
+        st.markdown("## PASSWORD RECOVERED")
+
+        st.markdown(
+            f"""
+            <div style="
+                background:#17171d;
+                border:1px solid #b99b65;
+                padding:30px;
+                text-align:center;
+                ">
+                <div style="
+                    color:#b99b65;
+                    font-family:monospace;
+                    letter-spacing:4px;
+                    ">
+                    RECOVERED PASSWORD
+                </div>
+                <div style="
+                    color:#f0d8a8;
+                    font-size:38px;
+                    letter-spacing:6px;
+                    font-family:monospace;
+                    ">
+                    {SECURITY_PASSWORD}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.balloons()
+
+        st.write(
+            "The encrypted transmission has been recovered. "
+            "The second security checkpoint is now accessible."
+        )
+
+    st.divider()
+
+    if st.button("RETURN TO DIRECTORY"):
+        st.session_state.selected_room = None
+        st.rerun()
+
+# ---------------- ROOM 3: THE FINAL CHALLENGE ----------------
+
+elif st.session_state.selected_room == "room3":
+
+    st.divider()
+
+    st.markdown("# THE FINAL CHALLENGE")
+
+    st.warning("FINAL SECURITY PROTOCOL ACTIVATED.")
+
+    st.write("""
+    You have reached the final stage of the investigation.
+
+    One suspect is responsible for sabotaging the facility.
+    Use the evidence below to identify the culprit.
+    """)
+
+    st.markdown("### SUSPECT DATABASE")
+
+    st.write("""
+    **Alex:** Was not responsible for the sabotage.
+
+    **Jordan:** Was seen near the control room but was not responsible.
+
+    **Morgan:** The remaining suspect.
+    """)
+
+    with st.form("final_challenge_form"):
+
+        user_answer = st.text_input(
+            "IDENTIFY THE CULPRIT",
+            placeholder="Enter suspect name..."
+        )
+
+        submitted = st.form_submit_button("SUBMIT FINAL ANSWER")
+
+        if submitted:
+
+            if check_final_answer(user_answer):
+                st.session_state.room3_completed = True
+            else:
+                st.error("IDENTIFICATION FAILED.")
+
+    if not st.session_state.room3_completed:
+
+        if st.button("REQUEST INTELLIGENCE REPORT"):
+
+            if st.session_state.room3_hint_level < len(FINAL_HINTS):
+                st.session_state.room3_hint_level += 1
+
+        if st.session_state.room3_hint_level > 0:
+            st.info(
+                FINAL_HINTS[
+                    st.session_state.room3_hint_level - 1
+                ]
+            )
+
+        st.caption(
+            f"FAILED ATTEMPTS: {st.session_state.room3_attempts}"
+        )
+
+    else:
+
+        st.success("CULPRIT IDENTIFIED. FACILITY SECURITY OVERRIDDEN.")
+
+        st.markdown("## FINAL SECURITY PHRASE")
+
+        st.title(SECURITY_PHRASE)
+
+        st.balloons()
+
+    if st.button("RETURN TO DIRECTORY"):
+        st.session_state.selected_room = None
+        st.rerun()
 
 # ---------------- FOOTER ----------------
 
 st.divider()
 
-st.markdown("""
-<div style="text-align:center; padding:20px;">
-    <div class="terminal">THE ENIGMA FILES // CLASSIFIED ARCHIVES</div>
-    <p style="color:#70675e; font-size:12px;">
-        THINK CAREFULLY. EVERY CLUE MATTERS.
-    </p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div style="text-align: center; padding: 20px 0; color: #888;">
+        <p style="font-family: 'Share Tech Mono', monospace;">
+            THE ENIGMA FILES
+        </p>
+        <p style="font-size: 12px;">
+            CLASSIFIED INVESTIGATION SYSTEM
+        </p>
+        <p style="font-size: 11px;">
+            © 2026 THE ENIGMA FILES. ALL RIGHTS RESERVED.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
