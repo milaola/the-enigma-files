@@ -1,0 +1,20 @@
+[
+    {
+        "id": 1,
+        "question": "Find the missing number: 3, 8, 15, 24, 35, ?",
+        "answer": "48",
+        "hint": "Look at the differences between consecutive numbers."
+    },
+    {
+        "id": 2,
+        "question": "Find the missing number: 2, 4, 8, 16, 32, ?",
+        "answer": "64",
+        "hint": "Each number is multiplied by the same value."
+    },
+    {
+        "id": 3,
+        "question": "Find the missing number: 1, 4, 9, 16, 25, ?",
+        "answer": "36",
+        "hint": "Think about square numbers."
+    }
+]

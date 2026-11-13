@@ -1,0 +1,20 @@
+[
+    {
+        "id": 1,
+        "question": "Three suspects are Alex, Jordan and Morgan. Alex was not responsible. Jordan was not responsible. Who sabotaged the facility?",
+        "answer": "MORGAN",
+        "hint": "Eliminate the two suspects who were not responsible."
+    },
+    {
+        "id": 2,
+        "question": "A code has three digits. The first digit is 2. The second digit is twice the first. The third digit is the sum of the first two. What is the code?",
+        "answer": "246",
+        "hint": "Calculate each digit in order."
+    },
+    {
+        "id": 3,
+        "question": "A guard makes this statement: 'The security code is an even number greater than 10 and less than 16.' What is the smallest possible code?",
+        "answer": "12",
+        "hint": "Consider the even numbers between 10 and 16."
+    }
+]

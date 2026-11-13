@@ -1,0 +1,20 @@
+[
+    {
+        "id": 1,
+        "question": "Decode this message using a Caesar cipher with a shift of 3: VHFUHW",
+        "answer": "SECRET",
+        "hint": "Move every letter backwards by three positions."
+    },
+    {
+        "id": 2,
+        "question": "Decode this message using a Caesar cipher with a shift of 1: DBU",
+        "answer": "CAT",
+        "hint": "Move every letter backwards by one position."
+    },
+    {
+        "id": 3,
+        "question": "Decode this message using a Caesar cipher with a shift of 2: JGNNQ",
+        "answer": "HELLO",
+        "hint": "Move every letter backwards by two positions."
+    }
+]
