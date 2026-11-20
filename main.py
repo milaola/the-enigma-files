@@ -1,5 +1,25 @@
-
 import html
+import os
+import streamlit as st
+
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+APP_ENV = os.getenv("APP_ENV", "development")
+
+from database import (
+    create_player,
+    complete_room,
+    record_attempt,
+    record_hint,
+    get_player_progress,
+    get_leaderboard,
+    get_player_by_id
+)
+
 import streamlit as st
 
 from database import (
