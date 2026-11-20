@@ -2,7 +2,15 @@
 import html
 import streamlit as st
 
-from database import create_player, complete_room, get_leaderboard
+from database import (
+    create_player,
+    complete_room,
+    record_attempt,
+    record_hint,
+    get_player_progress,
+    get_leaderboard,
+    get_player_by_id
+)
 
 from puzzles.code_vault import (
     SEQUENCE,
@@ -40,8 +48,10 @@ st.set_page_config(
 defaults = {
     "player_name": "",
     "player_id": None,
+    "player_access_id": None,
     "selected_room": None,
     "started": False,
+    "progress_loaded": False,
 
     "room1_completed": False,
     "room1_attempts": 0,
@@ -63,13 +73,46 @@ for key, value in defaults.items():
 
 # ---------------- HELPER FUNCTIONS ----------------
 
+def load_progress():
+    """Load saved player progress from the database."""
+
+    if st.session_state.progress_loaded:
+        return
+
+    progress = get_player_progress(
+        st.session_state.player_id
+    )
+
+    for room_number, room_data in progress.items():
+
+        st.session_state[f"room{room_number}_completed"] = (
+            room_data["completed"]
+        )
+
+        st.session_state[f"room{room_number}_attempts"] = (
+            room_data["attempts"]
+        )
+
+        st.session_state[f"room{room_number}_hint_level"] = (
+            room_data["hints_used"]
+        )
+
+    st.session_state.progress_loaded = True
+
+
 def finish_room(room_number):
-    """Award points and record room completion once per session."""
+    """Save room completion and award points only once."""
 
     completed_key = f"room{room_number}_completed"
 
     if not st.session_state[completed_key]:
-        complete_room(st.session_state.player_id, points=100)
+
+        complete_room(
+            st.session_state.player_id,
+            room_number,
+            points=100
+        )
+
         st.session_state[completed_key] = True
 
 
@@ -89,27 +132,47 @@ def room_is_unlocked(room_number):
 
 
 def show_hint(button_label, hint_list, room_number):
-    """Display the next available hint."""
+    """Display and save the player's hint usage."""
 
     hint_key = f"room{room_number}_hint_level"
 
-    if st.button(button_label, key=f"hint_button_{room_number}"):
+    if st.button(
+        button_label,
+        key=f"hint_button_{room_number}"
+    ):
 
         if st.session_state[hint_key] < len(hint_list):
+
+            record_hint(
+                st.session_state.player_id,
+                room_number
+            )
+
             st.session_state[hint_key] += 1
 
     if st.session_state[hint_key] > 0:
-        hint = hint_list[st.session_state[hint_key] - 1]
+
+        hint = hint_list[
+            st.session_state[hint_key] - 1
+        ]
+
         st.info(f"INTELLIGENCE REPORT: {hint}")
 
     if st.session_state[hint_key] >= len(hint_list):
         st.caption("ALL AVAILABLE HINTS HAVE BEEN REVEALED.")
 
 
-def show_return_button():
-    if st.button("RETURN TO DIRECTORY"):
-        st.session_state.selected_room = None
-        st.rerun()
+def record_failed_attempt(room_number):
+    """Save an unsuccessful answer."""
+
+    attempts_key = f"room{room_number}_attempts"
+
+    st.session_state[attempts_key] += 1
+
+    record_attempt(
+        st.session_state.player_id,
+        room_number
+    )
 
 
 # ---------------- PAGE STYLING ----------------
@@ -285,46 +348,129 @@ Your only way out is to solve what lies within them.
 st.divider()
 
 
-# ---------------- PLAYER REGISTRATION ----------------
+# ---------------- PLAYER REGISTRATION AND LOGIN ----------------
 
 if not st.session_state.started:
 
     st.markdown("## IDENTIFY YOURSELF")
 
-    st.write("Enter your name to begin the classified investigation.")
+    auth_mode = st.radio(
+        "SELECT ACCESS TYPE",
+        ["NEW AGENT", "RETURNING AGENT"],
+        horizontal=True
+    )
 
-    with st.form("player_registration_form"):
+    # NEW PLAYER REGISTRATION
 
-        player_name = st.text_input(
-            "PLAYER NAME",
-            placeholder="Enter your name..."
+    if auth_mode == "NEW AGENT":
+
+        st.write(
+            "Register a new identity to begin the investigation."
         )
 
-        submitted = st.form_submit_button("START GAME")
+        with st.form("player_registration_form"):
 
-        if submitted:
+            player_name = st.text_input(
+                "PLAYER NAME",
+                placeholder="Enter your name..."
+            )
 
-            if not player_name.strip():
-                st.error("Please enter your name.")
+            submitted = st.form_submit_button(
+                "REGISTER AND START"
+            )
 
-            else:
-                clean_name = player_name.strip()
-                player_id = create_player(clean_name)
+            if submitted:
 
-                st.session_state.player_id = player_id
-                st.session_state.player_name = clean_name
-                st.session_state.started = True
+                if not player_name.strip():
 
-                st.success("IDENTITY REGISTERED.")
-                st.rerun()
+                    st.error("Please enter your name.")
+
+                else:
+
+                    clean_name = player_name.strip()
+
+                    player_id = create_player(clean_name)
+
+                    st.session_state.player_id = player_id
+                    st.session_state.player_name = clean_name
+                    st.session_state.player_access_id = player_id
+                    st.session_state.started = True
+                    st.session_state.progress_loaded = False
+
+                    st.rerun()
+
+    # RETURNING PLAYER LOGIN
+
+    else:
+
+        st.write(
+            "Enter your registered details to resume your investigation."
+        )
+
+        with st.form("player_login_form"):
+
+            access_id = st.number_input(
+                "PLAYER ID",
+                min_value=1,
+                step=1
+            )
+
+            player_name = st.text_input(
+                "PLAYER NAME",
+                placeholder="Enter your registered name..."
+            )
+
+            submitted = st.form_submit_button(
+                "RESUME INVESTIGATION"
+            )
+
+            if submitted:
+
+                if not player_name.strip():
+
+                    st.error("Please enter your name.")
+
+                else:
+
+                    player = get_player_by_id(
+                        int(access_id),
+                        player_name
+                    )
+
+                    if player is None:
+
+                        st.error(
+                            "IDENTITY NOT FOUND. "
+                            "CHECK YOUR PLAYER ID AND NAME."
+                        )
+
+                    else:
+
+                        st.session_state.player_id = player[0]
+                        st.session_state.player_name = player[1]
+                        st.session_state.player_access_id = player[0]
+                        st.session_state.started = True
+                        st.session_state.progress_loaded = False
+
+                        st.rerun()
 
     st.stop()
+
+
+# ---------------- LOAD SAVED PROGRESS ----------------
+
+load_progress()
 
 
 # ---------------- PLAYER INFORMATION ----------------
 
 st.markdown(
     f"**AGENT:** {html.escape(st.session_state.player_name)}"
+)
+
+st.info(
+    f"YOUR PLAYER ID: {st.session_state.player_access_id} "
+    "| Keep this ID to access your saved progress later."
 )
 
 completed_rooms = sum([
@@ -336,14 +482,19 @@ completed_rooms = sum([
 st.caption(f"ROOMS COMPLETED: {completed_rooms}/3")
 
 if completed_rooms == 3:
-    st.success("ALL SECURITY CHECKPOINTS OVERRIDDEN. YOU HAVE ESCAPED!")
+
+    st.success(
+        "ALL SECURITY CHECKPOINTS OVERRIDDEN. YOU HAVE ESCAPED!"
+    )
 
 
 # ---------------- ROOM DIRECTORY ----------------
 
 st.markdown("## CLASSIFIED ROOM DIRECTORY")
 
-st.caption("SELECT AN UNLOCKED ROOM TO BEGIN OR CONTINUE YOUR INVESTIGATION.")
+st.caption(
+    "SELECT AN UNLOCKED ROOM TO BEGIN OR CONTINUE YOUR INVESTIGATION."
+)
 
 rooms = [
     {
@@ -377,8 +528,12 @@ columns = st.columns(3)
 for col, room in zip(columns, rooms):
 
     room_number = room["room_number"]
+
     unlocked = room_is_unlocked(room_number)
-    completed = st.session_state[f"room{room_number}_completed"]
+
+    completed = st.session_state[
+        f"room{room_number}_completed"
+    ]
 
     with col:
 
@@ -392,10 +547,15 @@ for col, room in zip(columns, rooms):
         """, unsafe_allow_html=True)
 
         if completed:
+
             st.success("COMPLETED")
+
         elif not unlocked:
+
             st.warning("LOCKED")
+
         else:
+
             st.info("AVAILABLE")
 
         if st.button(
@@ -404,6 +564,7 @@ for col, room in zip(columns, rooms):
             use_container_width=True,
             disabled=not unlocked
         ):
+
             st.session_state.selected_room = room["key"]
             st.rerun()
 
@@ -437,7 +598,9 @@ if st.session_state.selected_room == "room1":
 
     st.markdown("### RECOVERED DATA")
 
-    sequence_display = "   →   ".join(str(number) for number in SEQUENCE)
+    sequence_display = "   →   ".join(
+        str(number) for number in SEQUENCE
+    )
 
     st.markdown(
         f"""
@@ -476,14 +639,20 @@ if st.session_state.selected_room == "room1":
             if submitted:
 
                 if check_answer(user_answer):
+
                     finish_room(1)
                     st.rerun()
 
                 else:
-                    st.session_state.room1_attempts += 1
-                    st.error("ACCESS DENIED. THE SEQUENCE DOES NOT MATCH.")
+
+                    record_failed_attempt(1)
+
+                    st.error(
+                        "ACCESS DENIED. THE SEQUENCE DOES NOT MATCH."
+                    )
 
         st.divider()
+
         st.markdown("### INVESTIGATION NOTES")
 
         show_hint("REQUEST HINT", HINTS, 1)
@@ -494,7 +663,9 @@ if st.session_state.selected_room == "room1":
 
     else:
 
-        st.success("ACCESS GRANTED. SECURITY SYSTEM OVERRIDDEN.")
+        st.success(
+            "ACCESS GRANTED. SECURITY SYSTEM OVERRIDDEN."
+        )
 
         st.markdown("## SECURITY CODE RECOVERED")
 
@@ -601,6 +772,7 @@ elif st.session_state.selected_room == "room2":
     )
 
     st.write("")
+
     st.markdown("### DECRYPTION TERMINAL")
 
     if not st.session_state.room2_completed:
@@ -620,14 +792,20 @@ elif st.session_state.selected_room == "room2":
             if submitted:
 
                 if check_message_answer(user_message):
+
                     finish_room(2)
                     st.rerun()
 
                 else:
-                    st.session_state.room2_attempts += 1
-                    st.error("DECRYPTION FAILED. MESSAGE DOES NOT MATCH.")
+
+                    record_failed_attempt(2)
+
+                    st.error(
+                        "DECRYPTION FAILED. MESSAGE DOES NOT MATCH."
+                    )
 
         st.divider()
+
         st.markdown("### CLASSIFIED INTELLIGENCE")
 
         show_hint(
@@ -723,16 +901,21 @@ elif st.session_state.selected_room == "room3":
                 placeholder="Enter suspect name..."
             )
 
-            submitted = st.form_submit_button("SUBMIT FINAL ANSWER")
+            submitted = st.form_submit_button(
+                "SUBMIT FINAL ANSWER"
+            )
 
             if submitted:
 
                 if check_final_answer(user_answer):
+
                     finish_room(3)
                     st.rerun()
 
                 else:
-                    st.session_state.room3_attempts += 1
+
+                    record_failed_attempt(3)
+
                     st.error("IDENTIFICATION FAILED.")
 
         st.divider()
@@ -749,7 +932,9 @@ elif st.session_state.selected_room == "room3":
 
     else:
 
-        st.success("CULPRIT IDENTIFIED. FACILITY SECURITY OVERRIDDEN.")
+        st.success(
+            "CULPRIT IDENTIFIED. FACILITY SECURITY OVERRIDDEN."
+        )
 
         st.markdown("## FINAL SECURITY PHRASE")
 
@@ -789,6 +974,7 @@ if leaderboard:
     ])
 
 else:
+
     st.info("NO AGENT RECORDS FOUND.")
 
 
