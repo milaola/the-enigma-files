@@ -1,3 +1,9 @@
+
+import html
+import streamlit as st
+
+from database import create_player, complete_room, get_leaderboard
+
 from puzzles.code_vault import (
     SEQUENCE,
     SECURITY_CODE,
@@ -9,7 +15,6 @@ from puzzles.hidden_message import (
     ENCRYPTED_MESSAGE,
     SECURITY_PASSWORD,
     HINTS as MESSAGE_HINTS,
-    decrypt_message,
     check_answer as check_message_answer
 )
 
@@ -20,12 +25,7 @@ from puzzles.final_challenge import (
 )
 
 
-
-
-import streamlit as st
-
-if "room3_completed" not in st.session_state:
-    st.session_state.room3_completed = False
+# ---------------- PAGE CONFIGURATION ----------------
 
 st.set_page_config(
     page_title="The Enigma Files | Classified",
@@ -33,6 +33,84 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+
+# ---------------- SESSION STATE INITIALIZATION ----------------
+
+defaults = {
+    "player_name": "",
+    "player_id": None,
+    "selected_room": None,
+    "started": False,
+
+    "room1_completed": False,
+    "room1_attempts": 0,
+    "room1_hint_level": 0,
+
+    "room2_completed": False,
+    "room2_attempts": 0,
+    "room2_hint_level": 0,
+
+    "room3_completed": False,
+    "room3_attempts": 0,
+    "room3_hint_level": 0,
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+# ---------------- HELPER FUNCTIONS ----------------
+
+def finish_room(room_number):
+    """Award points and record room completion once per session."""
+
+    completed_key = f"room{room_number}_completed"
+
+    if not st.session_state[completed_key]:
+        complete_room(st.session_state.player_id, points=100)
+        st.session_state[completed_key] = True
+
+
+def room_is_unlocked(room_number):
+    """Check whether a player has unlocked a room."""
+
+    if room_number == 1:
+        return True
+
+    if room_number == 2:
+        return st.session_state.room1_completed
+
+    if room_number == 3:
+        return st.session_state.room2_completed
+
+    return False
+
+
+def show_hint(button_label, hint_list, room_number):
+    """Display the next available hint."""
+
+    hint_key = f"room{room_number}_hint_level"
+
+    if st.button(button_label, key=f"hint_button_{room_number}"):
+
+        if st.session_state[hint_key] < len(hint_list):
+            st.session_state[hint_key] += 1
+
+    if st.session_state[hint_key] > 0:
+        hint = hint_list[st.session_state[hint_key] - 1]
+        st.info(f"INTELLIGENCE REPORT: {hint}")
+
+    if st.session_state[hint_key] >= len(hint_list):
+        st.caption("ALL AVAILABLE HINTS HAVE BEEN REVEALED.")
+
+
+def show_return_button():
+    if st.button("RETURN TO DIRECTORY"):
+        st.session_state.selected_room = None
+        st.rerun()
+
 
 # ---------------- PAGE STYLING ----------------
 
@@ -160,44 +238,7 @@ footer {
 """, unsafe_allow_html=True)
 
 
-# ---------------- SESSION STATE ----------------
-
-if "selected_room" not in st.session_state:
-    st.session_state.selected_room = None
-
-if "started" not in st.session_state:
-    st.session_state.started = False
-
-if "room1_completed" not in st.session_state:
-    st.session_state.room1_completed = False
-
-if "room1_attempts" not in st.session_state:
-    st.session_state.room1_attempts = 0
-
-if "room1_hint_level" not in st.session_state:
-    st.session_state.room1_hint_level = 0
-
-if "room2_completed" not in st.session_state:
-    st.session_state.room2_completed = False
-
-if "room2_attempts" not in st.session_state:
-    st.session_state.room2_attempts = 0
-
-if "room2_hint_level" not in st.session_state:
-    st.session_state.room2_hint_level = 0
-
-if "room3_completed" not in st.session_state:
-    st.session_state.room3_completed = False
-
-if "room3_attempts" not in st.session_state:
-    st.session_state.room3_attempts = 0
-
-if "room3_hint_level" not in st.session_state:
-    st.session_state.room3_hint_level = 0
-
-
 # ---------------- HEADER ----------------
-
 
 st.markdown("""
 <div class="terminal">
@@ -243,13 +284,66 @@ Your only way out is to solve what lies within them.
 
 st.divider()
 
-# ---------------- ROOM CARDS ----------------
+
+# ---------------- PLAYER REGISTRATION ----------------
+
+if not st.session_state.started:
+
+    st.markdown("## IDENTIFY YOURSELF")
+
+    st.write("Enter your name to begin the classified investigation.")
+
+    with st.form("player_registration_form"):
+
+        player_name = st.text_input(
+            "PLAYER NAME",
+            placeholder="Enter your name..."
+        )
+
+        submitted = st.form_submit_button("START GAME")
+
+        if submitted:
+
+            if not player_name.strip():
+                st.error("Please enter your name.")
+
+            else:
+                clean_name = player_name.strip()
+                player_id = create_player(clean_name)
+
+                st.session_state.player_id = player_id
+                st.session_state.player_name = clean_name
+                st.session_state.started = True
+
+                st.success("IDENTITY REGISTERED.")
+                st.rerun()
+
+    st.stop()
+
+
+# ---------------- PLAYER INFORMATION ----------------
+
+st.markdown(
+    f"**AGENT:** {html.escape(st.session_state.player_name)}"
+)
+
+completed_rooms = sum([
+    st.session_state.room1_completed,
+    st.session_state.room2_completed,
+    st.session_state.room3_completed
+])
+
+st.caption(f"ROOMS COMPLETED: {completed_rooms}/3")
+
+if completed_rooms == 3:
+    st.success("ALL SECURITY CHECKPOINTS OVERRIDDEN. YOU HAVE ESCAPED!")
+
+
+# ---------------- ROOM DIRECTORY ----------------
 
 st.markdown("## CLASSIFIED ROOM DIRECTORY")
 
-st.caption("SELECT A ROOM TO REVIEW ITS MISSION BRIEFING.")
-
-col1, col2, col3 = st.columns(3)
+st.caption("SELECT AN UNLOCKED ROOM TO BEGIN OR CONTINUE YOUR INVESTIGATION.")
 
 rooms = [
     {
@@ -257,26 +351,37 @@ rooms = [
         "name": "THE CODE VAULT",
         "description": "A numerical sequence guards the first security checkpoint. Find the missing pattern to recover the access code.",
         "difficulty": "DIFFICULTY: RECONNAISSANCE",
-        "key": "room1"
+        "key": "room1",
+        "room_number": 1
     },
     {
         "number": "02 / LEVEL TWO",
         "name": "THE HIDDEN MESSAGE",
         "description": "An encrypted message has been intercepted. Decode the scrambled information to uncover the password.",
         "difficulty": "DIFFICULTY: DECRYPTION",
-        "key": "room2"
+        "key": "room2",
+        "room_number": 2
     },
     {
         "number": "03 / LEVEL THREE",
         "name": "THE FINAL CHALLENGE",
         "description": "A collection of clues conceals the final answer. Your reasoning will determine whether you escape.",
         "difficulty": "DIFFICULTY: CRITICAL",
-        "key": "room3"
+        "key": "room3",
+        "room_number": 3
     }
 ]
 
-for col, room in zip([col1, col2, col3], rooms):
+columns = st.columns(3)
+
+for col, room in zip(columns, rooms):
+
+    room_number = room["room_number"]
+    unlocked = room_is_unlocked(room_number)
+    completed = st.session_state[f"room{room_number}_completed"]
+
     with col:
+
         st.markdown(f"""
         <div class="room">
             <div class="room-number">{room['number']}</div>
@@ -286,9 +391,21 @@ for col, room in zip([col1, col2, col3], rooms):
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("ACCESS ROOM", key=room["key"], use_container_width=True):
+        if completed:
+            st.success("COMPLETED")
+        elif not unlocked:
+            st.warning("LOCKED")
+        else:
+            st.info("AVAILABLE")
+
+        if st.button(
+            "ACCESS ROOM",
+            key=room["key"],
+            use_container_width=True,
+            disabled=not unlocked
+        ):
             st.session_state.selected_room = room["key"]
-            st.session_state.started = True
+            st.rerun()
 
 
 # ---------------- ROOM 1: THE CODE VAULT ----------------
@@ -320,9 +437,7 @@ if st.session_state.selected_room == "room1":
 
     st.markdown("### RECOVERED DATA")
 
-    sequence_display = "   →   ".join(
-        str(number) for number in SEQUENCE
-    )
+    sequence_display = "   →   ".join(str(number) for number in SEQUENCE)
 
     st.markdown(
         f"""
@@ -335,8 +450,8 @@ if st.session_state.selected_room == "room1":
             color:#d6b77d;
             font-family:monospace;
             letter-spacing:3px;
-            ">
-            {sequence_display}
+        ">
+            {html.escape(sequence_display)}
         </div>
         """,
         unsafe_allow_html=True
@@ -344,64 +459,40 @@ if st.session_state.selected_room == "room1":
 
     st.write("")
 
-    # PLAYER ANSWER
-
-    with st.form("code_vault_form"):
-
-        user_answer = st.text_input(
-            "ENTER THE MISSING NUMBER",
-            placeholder="Awaiting input..."
-        )
-
-        submitted = st.form_submit_button(
-            "SUBMIT ANSWER",
-            use_container_width=True
-        )
-
-        if submitted:
-
-            if check_answer(user_answer):
-
-                st.session_state.room1_completed = True
-
-            else:
-
-                st.session_state.room1_attempts += 1
-
-                st.error(
-                    "ACCESS DENIED. THE SEQUENCE DOES NOT MATCH."
-                )
-
-    # HINT SYSTEM
-
-    st.divider()
-
-    st.markdown("### INVESTIGATION NOTES")
-
     if not st.session_state.room1_completed:
 
-        if st.button("REQUEST HINT"):
+        with st.form("code_vault_form"):
 
-            if st.session_state.room1_hint_level < len(HINTS):
-                st.session_state.room1_hint_level += 1
-
-        if st.session_state.room1_hint_level > 0:
-
-            hint = HINTS[
-                st.session_state.room1_hint_level - 1
-            ]
-
-            st.info(
-                f"INTELLIGENCE REPORT: {hint}"
+            user_answer = st.text_input(
+                "ENTER THE MISSING NUMBER",
+                placeholder="Awaiting input..."
             )
+
+            submitted = st.form_submit_button(
+                "SUBMIT ANSWER",
+                use_container_width=True
+            )
+
+            if submitted:
+
+                if check_answer(user_answer):
+                    finish_room(1)
+                    st.rerun()
+
+                else:
+                    st.session_state.room1_attempts += 1
+                    st.error("ACCESS DENIED. THE SEQUENCE DOES NOT MATCH.")
+
+        st.divider()
+        st.markdown("### INVESTIGATION NOTES")
+
+        show_hint("REQUEST HINT", HINTS, 1)
 
         st.caption(
             f"ATTEMPTS: {st.session_state.room1_attempts}"
         )
 
-    # SUCCESS
-
-    if st.session_state.room1_completed:
+    else:
 
         st.success("ACCESS GRANTED. SECURITY SYSTEM OVERRIDDEN.")
 
@@ -414,12 +505,12 @@ if st.session_state.selected_room == "room1":
                 border:1px solid #b99b65;
                 padding:30px;
                 text-align:center;
-                ">
+            ">
                 <div style="
                     color:#b99b65;
                     font-family:monospace;
                     letter-spacing:4px;
-                    ">
+                ">
                     RECOVERED SECURITY CODE
                 </div>
                 <div style="
@@ -427,25 +518,20 @@ if st.session_state.selected_room == "room1":
                     font-size:48px;
                     letter-spacing:12px;
                     font-family:monospace;
-                    ">
-                    {SECURITY_CODE}
+                ">
+                    {html.escape(str(SECURITY_CODE))}
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        st.balloons()
-
         st.write(
             "The first security checkpoint has been successfully bypassed."
         )
 
-    st.divider()
+        st.info("ROOM 2 IS NOW UNLOCKED.")
 
-    if st.button("RETURN TO DIRECTORY"):
-        st.session_state.selected_room = None
-        st.rerun()
 
 # ---------------- ROOM 2: THE HIDDEN MESSAGE ----------------
 
@@ -461,8 +547,7 @@ elif st.session_state.selected_room == "room2":
     st.markdown("# THE HIDDEN MESSAGE")
 
     st.warning(
-        "INTERCEPTED TRANSMISSION DETECTED. "
-        "DECRYPTION REQUIRED."
+        "INTERCEPTED TRANSMISSION DETECTED. DECRYPTION REQUIRED."
     )
 
     st.write("""
@@ -485,13 +570,13 @@ elif st.session_state.selected_room == "room2":
             border:1px solid #8c7049;
             padding:30px;
             text-align:center;
-            ">
+        ">
             <div style="
                 color:#b99b65;
                 font-family:monospace;
                 letter-spacing:3px;
                 font-size:12px;
-                ">
+            ">
                 ENCRYPTED DATA
             </div>
             <div style="
@@ -500,14 +585,14 @@ elif st.session_state.selected_room == "room2":
                 letter-spacing:12px;
                 font-family:monospace;
                 padding:15px;
-                ">
-                {ENCRYPTED_MESSAGE}
+            ">
+                {html.escape(str(ENCRYPTED_MESSAGE))}
             </div>
             <div style="
                 color:#8d7771;
                 font-family:monospace;
                 font-size:11px;
-                ">
+            ">
                 ENCRYPTION TYPE: CAESAR CIPHER
             </div>
         </div>
@@ -516,63 +601,46 @@ elif st.session_state.selected_room == "room2":
     )
 
     st.write("")
-
     st.markdown("### DECRYPTION TERMINAL")
-
-    with st.form("hidden_message_form"):
-
-        user_message = st.text_input(
-            "ENTER THE DECRYPTED WORD",
-            placeholder="Awaiting decoded message..."
-        )
-
-        submitted = st.form_submit_button(
-            "DECRYPT MESSAGE",
-            use_container_width=True
-        )
-
-        if submitted:
-
-            if check_message_answer(user_message):
-
-                st.session_state.room2_completed = True
-
-            else:
-
-                st.session_state.room2_attempts += 1
-
-                st.error(
-                    "DECRYPTION FAILED. MESSAGE DOES NOT MATCH."
-                )
-
-    # HINT SYSTEM
-
-    st.divider()
-
-    st.markdown("### CLASSIFIED INTELLIGENCE")
 
     if not st.session_state.room2_completed:
 
-        if st.button("REQUEST INTELLIGENCE REPORT"):
+        with st.form("hidden_message_form"):
 
-            if st.session_state.room2_hint_level < len(MESSAGE_HINTS):
-                st.session_state.room2_hint_level += 1
+            user_message = st.text_input(
+                "ENTER THE DECRYPTED WORD",
+                placeholder="Awaiting decoded message..."
+            )
 
-        if st.session_state.room2_hint_level > 0:
+            submitted = st.form_submit_button(
+                "DECRYPT MESSAGE",
+                use_container_width=True
+            )
 
-            hint = MESSAGE_HINTS[
-                st.session_state.room2_hint_level - 1
-            ]
+            if submitted:
 
-            st.info(f"INTELLIGENCE REPORT: {hint}")
+                if check_message_answer(user_message):
+                    finish_room(2)
+                    st.rerun()
+
+                else:
+                    st.session_state.room2_attempts += 1
+                    st.error("DECRYPTION FAILED. MESSAGE DOES NOT MATCH.")
+
+        st.divider()
+        st.markdown("### CLASSIFIED INTELLIGENCE")
+
+        show_hint(
+            "REQUEST INTELLIGENCE REPORT",
+            MESSAGE_HINTS,
+            2
+        )
 
         st.caption(
             f"FAILED ATTEMPTS: {st.session_state.room2_attempts}"
         )
 
-    # SUCCESS
-
-    if st.session_state.room2_completed:
+    else:
 
         st.success("MESSAGE SUCCESSFULLY DECRYPTED.")
 
@@ -585,12 +653,12 @@ elif st.session_state.selected_room == "room2":
                 border:1px solid #b99b65;
                 padding:30px;
                 text-align:center;
-                ">
+            ">
                 <div style="
                     color:#b99b65;
                     font-family:monospace;
                     letter-spacing:4px;
-                    ">
+                ">
                     RECOVERED PASSWORD
                 </div>
                 <div style="
@@ -598,32 +666,32 @@ elif st.session_state.selected_room == "room2":
                     font-size:38px;
                     letter-spacing:6px;
                     font-family:monospace;
-                    ">
-                    {SECURITY_PASSWORD}
+                ">
+                    {html.escape(str(SECURITY_PASSWORD))}
                 </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        st.balloons()
-
         st.write(
             "The encrypted transmission has been recovered. "
             "The second security checkpoint is now accessible."
         )
 
-    st.divider()
+        st.info("ROOM 3 IS NOW UNLOCKED.")
 
-    if st.button("RETURN TO DIRECTORY"):
-        st.session_state.selected_room = None
-        st.rerun()
 
 # ---------------- ROOM 3: THE FINAL CHALLENGE ----------------
 
 elif st.session_state.selected_room == "room3":
 
     st.divider()
+
+    st.markdown(
+        '<div class="terminal">ACCESSING FILE: EF-003-C</div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown("# THE FINAL CHALLENGE")
 
@@ -646,35 +714,34 @@ elif st.session_state.selected_room == "room3":
     **Morgan:** The remaining suspect.
     """)
 
-    with st.form("final_challenge_form"):
-
-        user_answer = st.text_input(
-            "IDENTIFY THE CULPRIT",
-            placeholder="Enter suspect name..."
-        )
-
-        submitted = st.form_submit_button("SUBMIT FINAL ANSWER")
-
-        if submitted:
-
-            if check_final_answer(user_answer):
-                st.session_state.room3_completed = True
-            else:
-                st.error("IDENTIFICATION FAILED.")
-
     if not st.session_state.room3_completed:
 
-        if st.button("REQUEST INTELLIGENCE REPORT"):
+        with st.form("final_challenge_form"):
 
-            if st.session_state.room3_hint_level < len(FINAL_HINTS):
-                st.session_state.room3_hint_level += 1
-
-        if st.session_state.room3_hint_level > 0:
-            st.info(
-                FINAL_HINTS[
-                    st.session_state.room3_hint_level - 1
-                ]
+            user_answer = st.text_input(
+                "IDENTIFY THE CULPRIT",
+                placeholder="Enter suspect name..."
             )
+
+            submitted = st.form_submit_button("SUBMIT FINAL ANSWER")
+
+            if submitted:
+
+                if check_final_answer(user_answer):
+                    finish_room(3)
+                    st.rerun()
+
+                else:
+                    st.session_state.room3_attempts += 1
+                    st.error("IDENTIFICATION FAILED.")
+
+        st.divider()
+
+        show_hint(
+            "REQUEST INTELLIGENCE REPORT",
+            FINAL_HINTS,
+            3
+        )
 
         st.caption(
             f"FAILED ATTEMPTS: {st.session_state.room3_attempts}"
@@ -690,9 +757,40 @@ elif st.session_state.selected_room == "room3":
 
         st.balloons()
 
-    if st.button("RETURN TO DIRECTORY"):
-        st.session_state.selected_room = None
-        st.rerun()
+        st.markdown("### MISSION COMPLETE")
+
+        st.write("""
+        All three security checkpoints have been overridden.
+
+        The facility doors are unlocked. You have successfully escaped.
+        """)
+
+
+# ---------------- LEADERBOARD ----------------
+
+st.divider()
+
+st.markdown("## CLASSIFIED LEADERBOARD")
+
+st.caption("TOP 10 AGENTS RANKED BY TOTAL SCORE.")
+
+leaderboard = get_leaderboard()
+
+if leaderboard:
+
+    st.table([
+        {
+            "AGENT": player[0],
+            "SCORE": player[1],
+            "ROOMS COMPLETED": player[2],
+            "LAST PLAYED": player[3]
+        }
+        for player in leaderboard
+    ])
+
+else:
+    st.info("NO AGENT RECORDS FOUND.")
+
 
 # ---------------- FOOTER ----------------
 
